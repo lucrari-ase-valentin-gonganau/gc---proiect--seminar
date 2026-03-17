@@ -1,0 +1,28 @@
+Sunt doua versiuni, prima versiune este bruta, totul intr-un singur fisier
+A doua versiune este structurata, cu componente separate, modulare, mai usor de intretinut. 
+Ambele versiuni sunt functionale, dar a doua versiune este mai bine organizata si mai usor de inteles.
+
+// nu am folosit modele , imagini sau resurse externe avand in vedere ca este in scop academic
+
+
+Proiectul poate fi testat live la adresa:
+https://grafica-proiect-valentin.gonganau.ro
+
+Codul sursa al proiectului poate fi gasit si la adresa:
+https://github.com/lucrari-ase-valentin-gonganau/gc---proiect--seminar
+
+Despre ce este vorba in proiect:
+Este un joc 3D simplu, in care jucatorul controleaza o masina care trebuie sa loveasca pietrele 
+care apar pe drum. 
+Avem un efect de miscare, un sistem de scor, si o interfata simpla care afiseaza 
+instructiunile si scorul curent.
+
+Cum functioneaza: 
+- Jucatorul foloseste sagetile pentru a schimba directia masinii
+- Masina se misca continuu atat timp cat jucatorul tine apasata tasta SPACE si directia de miscare ( directia de miscare poate fi apasat pentru accelerare sau mers inapoi), 
+iar atunci cand libereaza tasta SPACE, masina incetineste treptat.
+
+Jocul continua sa ruleze chiar daca jucatorul loveste toate pietrele, 
+Jucatorul poate apasa tasta CTRL + R pentru a reseta jocul.
+
+
