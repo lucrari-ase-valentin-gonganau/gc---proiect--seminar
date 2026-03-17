@@ -1,3 +1,22 @@
+import { createDrum } from "./components/drum.js";
+import { createCopac } from "./components/copac.js";
+import { setupLights } from "./components/lumini.js";
+import { createCar } from "./components/car.js";
+import { createStones } from "./components/piatra.js";
+import {
+  CONFIG,
+  CAMERA_CONFIG,
+  ROAD_CONFIG,
+  CAR_CONFIG,
+  STONE_CONFIG,
+  TREE_CONFIG,
+  PARTICLE_CONFIG,
+} from "./config.js";
+
+// ============================================
+// INITIALIZARE SCENA
+// ============================================
+
 const canvas = document.getElementById("c");
 const msg = document.getElementById("msg");
 const scoreEl = document.getElementById("score");
@@ -7,30 +26,19 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.tap = THREE.PCFSoftShadowMap;
-renderer.setClearColor(0x87ceeb);
+renderer.setClearColor(CONFIG.SKY_COLOR);
 
 // Scena si ceata
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x87ceeb, 30, 80);
+scene.fog = new THREE.Fog(CONFIG.SKY_COLOR, CONFIG.FOG_NEAR, CONFIG.FOG_FAR);
 
 // Camera
-const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 200);
-camera.position.set(0, 8, 14);
+const camera = new THREE.PerspectiveCamera(CAMERA_CONFIG.FOV, 1, 0.1, 200);
+camera.position.set(CAMERA_CONFIG.INITIAL_POS.x, CAMERA_CONFIG.INITIAL_POS.y, CAMERA_CONFIG.INITIAL_POS.z);
 camera.lookAt(0, 0, 0);
 
 // Lumini
-const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambient);
-
-const sun = new THREE.DirectionalLight(0xfff4e0, 1.2);
-sun.position.set(10, 20, 10);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.near = 0.5;
-sun.shadow.camera.far = 80;
-sun.shadow.camera.left = sun.shadow.camera.bottom = -30;
-sun.shadow.camera.right = sun.shadow.camera.top = 30;
-scene.add(sun);
+setupLights(scene);
 
 function mat(color, rough = 0.8, metal = 0) {
   return new THREE.MeshStandardMaterial({
@@ -42,202 +50,85 @@ function mat(color, rough = 0.8, metal = 0) {
 
 // sol
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(60, 60, 20, 20),
-  mat(0x228b22, 0.9),
+  new THREE.PlaneGeometry(CONFIG.GROUND_SIZE, CONFIG.GROUND_SIZE, 20, 20),
+  mat(CONFIG.GROUND_COLOR, 0.9),
 );
 ground.rotation.x = THREE.MathUtils.degToRad(-90);
 ground.receiveShadow = true;
 scene.add(ground);
 
-// dungi de drum
-const road = new THREE.Mesh(new THREE.PlaneGeometry(6, 60), mat(0x444444, 0.9));
-road.rotation.x = THREE.MathUtils.degToRad(-90);
-road.position.y = 0.01;
-road.receiveShadow = true;
-scene.add(road);
-
-// Maracaj central de drum
-for (let z = -28; z < 30; z += 4) {
-  const mark = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.2, 2),
-    mat(0xffffff, 0.9),
-  );
-  mark.rotation.x = THREE.MathUtils.degToRad(-90);
-  mark.position.set(0, 0.02, z);
-  scene.add(mark);
-}
+// Drum
+createDrum(scene, mat);
 
 // Masina
-const carGroup = new THREE.Group();
+const { carGroup, wheels, steerPivots } = createCar(scene, mat);
 
-// caroserie
-const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1.4, 0.5, 3.5),
-  mat(0xe74c3c, 0.5, 0.3),
-);
-body.position.y = 0.45;
-body.castShadow = true;
-carGroup.add(body);
-
-const cabin = new THREE.Mesh(
-  new THREE.BoxGeometry(1.4, 0.5, 1.8),
-  mat(0xc0392b, 0.5, 0.2),
-);
-
-cabin.position.set(0, 0.9, -0.2);
-cabin.castShadow = true;
-carGroup.add(cabin);
-
-// geamuri
-const winMat = mat(0x3498db, 0.1, 0.9);
-winMat.transparent = true;
-winMat.opacity = 0.7;
-const winF = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.4), winMat);
-winF.position.set(0, 0.92, 0.71);
-carGroup.add(winF);
-
-const wheelGroup = new THREE.Group();
-// roti
-const wheelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.2, 16);
-const wheelMat = mat(0x333333, 0.8, 0.9);
-const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
-wheelMesh.castShadow = true;
-
-const capGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.21, 16);
-const capMat = mat(0xffffff, 0.8, 0.1);
-const capMesh = new THREE.Mesh(capGeo, capMat);
-capMesh.castShadow = true;
-
-wheelGroup.add(wheelMesh);
-wheelGroup.add(capMesh);
-
-const wheelPositions = [
-  [-0.8, 0.28, 1.1],
-  [0.8, 0.28, 1.1],
-  [-0.8, 0.28, -1.1],
-  [0.8, 0.28, -1.1],
-];
-
-// vom face mai tarziu o animatie de rotire a rotilor,
-// asa ca le vom pune intr-un array pentru a le putea accesa usor
-const wheels = [];
-const steerPivots = [];
-wheelPositions.forEach((pos, i) => {
-  // pivot-ul e aliniat cu lumea — fără rotație proprie
-  const pivot = new THREE.Group();
-  pivot.position.set(...pos);
-  carGroup.add(pivot);
-
-  // roata e în interiorul pivot-ului, rotită pe Z
-  const w = wheelGroup.clone();
-  w.rotation.z = Math.PI / 2;
-  w.position.set(0, 0, 0);
-  pivot.add(w);
-
-  wheels.push(w);
-  if (i < 2) steerPivots.push(pivot);
-});
-// faruri
-[
-  [-0.55, 0.45, 1.76],
-  [0.55, 0.45, 1.76],
-].forEach((pos) => {
-  const f = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.15, 0.05),
-    mat(0xffffaa, 0.2, 0.5),
-  );
-  f.position.set(...pos);
-  carGroup.add(f);
-});
-
-scene.add(carGroup);
-carGroup.position.set(0, 0, 5);
-
-// pietre
-const stoneColors = [0x7f8c8d, 0x95a5a6, 0xbdc3c7];
-
-// random stones pe langa drum
-const stonePositions = Array.from({ length: 3 }).map(() => [
-  (Math.random() - 0.5) * 50,
-  0,
-  (Math.random() - 0.5) * 50,
-]);
-
-const stones = [];
-const stoneData = [];
-
-stonePositions.forEach((pos, i) => {
-  const sg = new THREE.Group();
-
-  const s1 = new THREE.Mesh(
-    new THREE.DodecahedronGeometry(0.5, 0),
-    mat(stoneColors[i], 0.95),
-  );
-  s1.scale.set(1, 0.6, 1);
-  s1.castShadow = true;
-  sg.add(s1);
-
-  const s2 = new THREE.Mesh(
-    new THREE.DodecahedronGeometry(0.3, 0),
-    mat(stoneColors[i] + 0x111111, 0.95),
-  );
-  s2.position.set(0.3, 0.2, -0.2);
-  s2.castShadow = true;
-  sg.add(s2);
-
-  sg.position.set(...pos);
-  sg.position.y = 0.35;
-  sg.rotation.y = Math.random() * Math.PI;
-
-  scene.add(sg);
-  stones.push(sg);
-  stoneData.push({ hit: false, originalY: 0.35, bounceT: 0 });
-});
+// Pietre
+const { stones, stoneData, stonePositions, stoneColors } = createStones(scene, mat);
 
 const threes = [];
 
+// Generare aleatorie copaci - minimum 50, cu distante sigure
+function generateTreePositions(count = TREE_CONFIG.COUNT) {
+  const positions = [];
+  const minDistBetweenTrees = TREE_CONFIG.MIN_DIST_BETWEEN;
+  const minDistFromRoad = TREE_CONFIG.MIN_DIST_FROM_ROAD;
+  const mapSize = CONFIG.MAP_LIMIT;
+  
+  let attempts = 0;
+  const maxAttempts = count * TREE_CONFIG.MAX_ATTEMPTS_MULTIPLIER;
+  
+  while (positions.length < count && attempts < maxAttempts) {
+    attempts++;
+    
+    // Genereaza pozitie aleatoare
+    const x = (Math.random() - 0.5) * mapSize * 2;
+    const z = (Math.random() - 0.5) * mapSize * 2;
+    
+    // Verifica daca e prea aproape de drum (drum e in centru pe x=0)
+    if (Math.abs(x) < minDistFromRoad) continue;
+    
+    // Verifica distanta fata de ceilalti copaci
+    let tooClose = false;
+    for (const pos of positions) {
+      const dx = pos[0] - x;
+      const dz = pos[2] - z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < minDistBetweenTrees) {
+        tooClose = true;
+        break;
+      }
+    }
+    
+    if (!tooClose) {
+      positions.push([x, 0, z]);
+    }
+  }
+  
+  return positions;
+}
+
 // Copaci decorativi
-[
-  [-8, 0, -5],
-  [-10, 0, 3],
-  [8, 0, -10],
-  [9, 0, 2],
-  [-7, 0, -18],
-  [8, 0, -20],
-].forEach((pos) => {
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.15, 0.2, 1.2, 6),
-    mat(0x5d4037, 0.95, 0.1),
-  );
-
-  trunk.position.set(pos[0], 0.6, pos[2]);
-  trunk.castShadow = true;
-  scene.add(trunk);
-
-  const top = new THREE.Mesh(
-    new THREE.ConeGeometry(1.2, 2.5, 7),
-    mat(0x2ecc71, 0.95, 0.1),
-  );
-  top.position.set(pos[0], 2.4, pos[2]);
-  top.castShadow = true;
-  scene.add(top);
-  threes.push({ trunk, top });
+const treePositions = generateTreePositions(TREE_CONFIG.COUNT);
+treePositions.forEach((pos) => {
+  const tree = createCopac(scene, mat, pos);
+  threes.push(tree);
 });
 
 // stari masina default
 const carInitial = {
   vel: 0,
   angle: 0,
-  x: 0,
-  z: 5,
-  maxSpeed: 12,
-  accel: 18,
-  brake: 10,
-  friction: 5,
-  turnSpeed: 2.2,
+  x: CAR_CONFIG.INITIAL_POS.x,
+  z: CAR_CONFIG.INITIAL_POS.z,
+  maxSpeed: CAR_CONFIG.PHYSICS.maxSpeed,
+  accel: CAR_CONFIG.PHYSICS.accel,
+  brake: CAR_CONFIG.PHYSICS.brake,
+  friction: CAR_CONFIG.PHYSICS.friction,
+  turnSpeed: CAR_CONFIG.PHYSICS.turnSpeed,
 };
 
-const car = { ...carInitial };
+let car = { ...carInitial };
 
 // Input
 const keys = {};
@@ -261,18 +152,18 @@ let score = 0;
 // Particule explozeie
 const particles = [];
 function spanwParticles(pos, color) {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < PARTICLE_CONFIG.COUNT_PER_EXPLOSION; i++) {
     const p = new THREE.Mesh(
-      new THREE.SphereGeometry(0.07 + Math.random() * 0.1, 4, 4),
+      new THREE.SphereGeometry(PARTICLE_CONFIG.MIN_SIZE + Math.random() * (PARTICLE_CONFIG.MAX_SIZE - PARTICLE_CONFIG.MIN_SIZE), 4, 4),
       mat(color, 0.8),
     );
     p.position.copy(pos);
     scene.add(p);
     particles.push({
       mesh: p,
-      vx: (Math.random() - 0.5) * 5,
-      vy: Math.random() * 5,
-      vz: (Math.random() - 0.5) * 5,
+      vx: (Math.random() - 0.5) * PARTICLE_CONFIG.VELOCITY_RANGE,
+      vy: Math.random() * PARTICLE_CONFIG.VELOCITY_RANGE,
+      vz: (Math.random() - 0.5) * PARTICLE_CONFIG.VELOCITY_RANGE,
       life: 1,
     });
   }
@@ -284,7 +175,7 @@ function resetScene() {
   score = 0;
   stones.forEach((sg, i) => {
     sg.position.set(...stonePositions[i]);
-    sg.position.y = 0.35;
+    sg.position.y = STONE_CONFIG.INITIAL_Y;
     sg.visible = true;
     stoneData[i].hit = false;
     stoneData[i].bounceT = 0;
@@ -355,20 +246,20 @@ function animate() {
   car.z += Math.cos(car.angle) * car.vel * dt;
 
   // limitare la teren
-  car.x = Math.max(-28, Math.min(28, car.x));
-  car.z = Math.max(-28, Math.min(28, car.z));
+  car.x = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, car.x));
+  car.z = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, car.z));
 
   // actualizare pozitie masina
   carGroup.position.set(car.x, 0, car.z);
   carGroup.rotation.y = car.angle;
 
   // roti se rotesc
-  const wheelRot = car.vel * dt * 2;
+  const wheelRot = car.vel * dt * CAR_CONFIG.WHEEL_ROTATION_MULT;
   wheels.forEach((w) => {
     w.rotation.x += wheelRot;
   });
   const steerAngle =
-    (keys["ArrowLeft"] ? 1 : keys["ArrowRight"] ? -1 : 0) * 0.4;
+    (keys["ArrowLeft"] ? 1 : keys["ArrowRight"] ? -1 : 0) * CAR_CONFIG.STEER_ANGLE;
   steerPivots[0].rotation.y = steerAngle;
   steerPivots[1].rotation.y = steerAngle;
 
@@ -387,8 +278,8 @@ function animate() {
 
       spanwParticles(sg.position.clone(), stoneColors[i]);
 
-      car.vel *= 0.35;
-      if (score >= 3) {
+      car.vel *= STONE_CONFIG.VELOCITY_REDUCTION;
+      if (score >= STONE_CONFIG.COUNT) {
         setTimeout(() => {
           msg.textContent =
             "Felicitari! Ai terminat jocul! Apasa R pentru reset.";
@@ -406,10 +297,10 @@ function animate() {
     const t = stoneData[i].bounceT;
     sg.position.y =
       stoneData[i].originalY +
-      Math.max(0, Math.sin(t * 4) * 1.5 * Math.exp(-t * 2));
+      Math.max(0, Math.sin(t * STONE_CONFIG.BOUNCE_SPEED) * STONE_CONFIG.BOUNCE_HEIGHT * Math.exp(-t * STONE_CONFIG.BOUNCE_DECAY));
     sg.rotation.x += 3 * dt;
     sg.rotation.z += 2 * dt;
-    if (t > 1.2) sg.visible = false;
+    if (t > STONE_CONFIG.BOUNCE_DURATION) sg.visible = false;
   });
 
   // loveste un copac, nu poate inainta
@@ -424,11 +315,11 @@ function animate() {
   // particule
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.vy -= 9.8 * dt;
+    p.vy -= PARTICLE_CONFIG.GRAVITY * dt;
     p.mesh.position.x += p.vx * dt;
     p.mesh.position.y += p.vy * dt;
     p.mesh.position.z += p.vz * dt;
-    p.life -= dt * 1.5;
+    p.life -= dt * PARTICLE_CONFIG.LIFE_DECAY;
     p.mesh.material.opacity = Math.max(0, p.life);
     p.mesh.material.transparent = true;
 
@@ -440,13 +331,13 @@ function animate() {
 
   // camera care urmareste masna
   const camOffset = new THREE.Vector3(
-    Math.sin(car.angle) * -10,
-    6,
-    Math.cos(car.angle) * -10,
+    Math.sin(car.angle) * CAMERA_CONFIG.OFFSET.z,
+    CAMERA_CONFIG.OFFSET.y,
+    Math.cos(car.angle) * CAMERA_CONFIG.OFFSET.z,
   );
   camera.position.lerp(
     new THREE.Vector3(car.x + camOffset.x, camOffset.y, car.z + camOffset.z),
-    0.1,
+    CAMERA_CONFIG.LERP_SPEED,
   );
 
   camera.lookAt(car.x, 1, car.z);
