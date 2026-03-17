@@ -3,14 +3,13 @@ import { createCopac } from "./components/copac.js";
 import { setupLights } from "./components/lumini.js";
 import { createCar } from "./components/car.js";
 import { createStones } from "./components/piatra.js";
+import { createParticleSystem } from "./components/particles.js";
 import {
   CONFIG,
   CAMERA_CONFIG,
-  ROAD_CONFIG,
   CAR_CONFIG,
   STONE_CONFIG,
   TREE_CONFIG,
-  PARTICLE_CONFIG,
 } from "./config.js";
 
 // ============================================
@@ -34,7 +33,11 @@ scene.fog = new THREE.Fog(CONFIG.SKY_COLOR, CONFIG.FOG_NEAR, CONFIG.FOG_FAR);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(CAMERA_CONFIG.FOV, 1, 0.1, 200);
-camera.position.set(CAMERA_CONFIG.INITIAL_POS.x, CAMERA_CONFIG.INITIAL_POS.y, CAMERA_CONFIG.INITIAL_POS.z);
+camera.position.set(
+  CAMERA_CONFIG.INITIAL_POS.x,
+  CAMERA_CONFIG.INITIAL_POS.y,
+  CAMERA_CONFIG.INITIAL_POS.z,
+);
 camera.lookAt(0, 0, 0);
 
 // Lumini
@@ -64,7 +67,13 @@ createDrum(scene, mat);
 const { carGroup, wheels, steerPivots } = createCar(scene, mat);
 
 // Pietre
-const { stones, stoneData, stonePositions, stoneColors } = createStones(scene, mat);
+const { stones, stoneData, stonePositions, stoneColors } = createStones(
+  scene,
+  mat,
+);
+
+// Particule
+const particleSystem = createParticleSystem();
 
 const threes = [];
 
@@ -74,20 +83,20 @@ function generateTreePositions(count = TREE_CONFIG.COUNT) {
   const minDistBetweenTrees = TREE_CONFIG.MIN_DIST_BETWEEN;
   const minDistFromRoad = TREE_CONFIG.MIN_DIST_FROM_ROAD;
   const mapSize = CONFIG.MAP_LIMIT;
-  
+
   let attempts = 0;
   const maxAttempts = count * TREE_CONFIG.MAX_ATTEMPTS_MULTIPLIER;
-  
+
   while (positions.length < count && attempts < maxAttempts) {
     attempts++;
-    
+
     // Genereaza pozitie aleatoare
     const x = (Math.random() - 0.5) * mapSize * 2;
     const z = (Math.random() - 0.5) * mapSize * 2;
-    
+
     // Verifica daca e prea aproape de drum (drum e in centru pe x=0)
     if (Math.abs(x) < minDistFromRoad) continue;
-    
+
     // Verifica distanta fata de ceilalti copaci
     let tooClose = false;
     for (const pos of positions) {
@@ -99,12 +108,12 @@ function generateTreePositions(count = TREE_CONFIG.COUNT) {
         break;
       }
     }
-    
+
     if (!tooClose) {
       positions.push([x, 0, z]);
     }
   }
-  
+
   return positions;
 }
 
@@ -149,26 +158,6 @@ canvas.addEventListener("click", () => {
 // scor
 let score = 0;
 
-// Particule explozeie
-const particles = [];
-function spanwParticles(pos, color) {
-  for (let i = 0; i < PARTICLE_CONFIG.COUNT_PER_EXPLOSION; i++) {
-    const p = new THREE.Mesh(
-      new THREE.SphereGeometry(PARTICLE_CONFIG.MIN_SIZE + Math.random() * (PARTICLE_CONFIG.MAX_SIZE - PARTICLE_CONFIG.MIN_SIZE), 4, 4),
-      mat(color, 0.8),
-    );
-    p.position.copy(pos);
-    scene.add(p);
-    particles.push({
-      mesh: p,
-      vx: (Math.random() - 0.5) * PARTICLE_CONFIG.VELOCITY_RANGE,
-      vy: Math.random() * PARTICLE_CONFIG.VELOCITY_RANGE,
-      vz: (Math.random() - 0.5) * PARTICLE_CONFIG.VELOCITY_RANGE,
-      life: 1,
-    });
-  }
-}
-
 // reset
 function resetScene() {
   car = { ...carInitial };
@@ -179,9 +168,8 @@ function resetScene() {
     sg.visible = true;
     stoneData[i].hit = false;
     stoneData[i].bounceT = 0;
-    particles.forEach((p) => scene.remove(p.mesh));
-    particles.length = 0;
   });
+  particleSystem.clear(scene);
 
   msg.textContent = "Resetat! Dreapta stanga si primul pietroi, da?";
   msg.style.color = "black";
@@ -259,7 +247,8 @@ function animate() {
     w.rotation.x += wheelRot;
   });
   const steerAngle =
-    (keys["ArrowLeft"] ? 1 : keys["ArrowRight"] ? -1 : 0) * CAR_CONFIG.STEER_ANGLE;
+    (keys["ArrowLeft"] ? 1 : keys["ArrowRight"] ? -1 : 0) *
+    CAR_CONFIG.STEER_ANGLE;
   steerPivots[0].rotation.y = steerAngle;
   steerPivots[1].rotation.y = steerAngle;
 
@@ -276,7 +265,7 @@ function animate() {
       msg.textContent = "Boum! Treci la urmatorul!";
       msg.style.color = "white";
 
-      spanwParticles(sg.position.clone(), stoneColors[i]);
+      particleSystem.spawn(scene, mat, sg.position.clone(), stoneColors[i]);
 
       car.vel *= STONE_CONFIG.VELOCITY_REDUCTION;
       if (score >= STONE_CONFIG.COUNT) {
@@ -297,7 +286,12 @@ function animate() {
     const t = stoneData[i].bounceT;
     sg.position.y =
       stoneData[i].originalY +
-      Math.max(0, Math.sin(t * STONE_CONFIG.BOUNCE_SPEED) * STONE_CONFIG.BOUNCE_HEIGHT * Math.exp(-t * STONE_CONFIG.BOUNCE_DECAY));
+      Math.max(
+        0,
+        Math.sin(t * STONE_CONFIG.BOUNCE_SPEED) *
+          STONE_CONFIG.BOUNCE_HEIGHT *
+          Math.exp(-t * STONE_CONFIG.BOUNCE_DECAY),
+      );
     sg.rotation.x += 3 * dt;
     sg.rotation.z += 2 * dt;
     if (t > STONE_CONFIG.BOUNCE_DURATION) sg.visible = false;
@@ -312,22 +306,8 @@ function animate() {
     }
   });
 
-  // particule
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.vy -= PARTICLE_CONFIG.GRAVITY * dt;
-    p.mesh.position.x += p.vx * dt;
-    p.mesh.position.y += p.vy * dt;
-    p.mesh.position.z += p.vz * dt;
-    p.life -= dt * PARTICLE_CONFIG.LIFE_DECAY;
-    p.mesh.material.opacity = Math.max(0, p.life);
-    p.mesh.material.transparent = true;
-
-    if (p.mesh.position.y < 0 || p.life <= 0) {
-      scene.remove(p.mesh);
-      particles.splice(i, 1);
-    }
-  }
+  // Particule
+  particleSystem.update(scene, dt);
 
   // camera care urmareste masna
   const camOffset = new THREE.Vector3(
