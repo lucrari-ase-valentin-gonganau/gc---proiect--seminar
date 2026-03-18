@@ -188,8 +188,39 @@ const carInitial = {
 
 let car = { ...carInitial };
 
-// Initializeaza sistemul audio
-audioManager.init();
+// Elemente pentru loading screen
+const loadingDiv = document.getElementById("loading");
+const loadingProgress = document.getElementById("loading-progress");
+const loadingText = document.getElementById("loading-text");
+
+// Functie pentru actualizare progres
+function updateLoadingProgress(loaded, total) {
+  const percent = Math.round((loaded / total) * 100);
+  loadingProgress.style.width = percent + "%";
+  loadingText.textContent = `Se incarca audio: ${loaded}/${total}`;
+}
+
+// Initializeaza sistemul audio cu loading
+async function initGame() {
+  loadingText.textContent = "Se incarca resurse audio...";
+
+  // Asteapta ca toate sunetele sa se incarce
+  await audioManager.init(updateLoadingProgress);
+
+  // Loading complet - ascunde ecranul
+  loadingProgress.style.width = "100%";
+  loadingText.textContent = "Gata!";
+
+  setTimeout(() => {
+    loadingDiv.classList.add("hidden");
+    setTimeout(() => {
+      loadingDiv.style.display = "none";
+    }, 500);
+  }, 300);
+}
+
+// Porneste incarcarea
+initGame();
 
 // Input
 const keys = {};

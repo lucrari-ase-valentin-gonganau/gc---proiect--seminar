@@ -11,80 +11,106 @@ class AudioManager {
     this.isMuted = true; // MUTED by default - activeaza cu tasta M
     this.volume = 0.5; // Volumul general (0.0 - 1.0)
     this.audioAvailable = {};
+    this.loadingPromises = [];
+    this.totalSounds = 5; // engine, hitStone, brake, scratch, crash
+    this.loadedSounds = 0;
   }
 
-  // Incarca un sunet si verifica daca exista
-  loadSound(name, path) {
-    try {
-      const audio = new Audio(path);
+  // Incarca un sunet si returneaza Promise cand e gata
+  loadSound(name, path, onProgress) {
+    return new Promise((resolve) => {
+      try {
+        const audio = new Audio(path);
+        audio.preload = "auto"; // Incarca complet fisierul
 
-      // Event listener pentru erori (fisier lipseste sau corrupt)
-      audio.addEventListener("error", () => {
+        // Sunetul s-a incarcat cu succes
+        audio.addEventListener(
+          "canplaythrough",
+          () => {
+            this.audioAvailable[name] = true;
+            this.loadedSounds++;
+            if (onProgress) {
+              onProgress(this.loadedSounds, this.totalSounds);
+            }
+            resolve(audio);
+          },
+          { once: true },
+        );
+
+        // Eroare la incarcare - continua fara acest sunet
+        audio.addEventListener("error", () => {
+          this.audioAvailable[name] = false;
+          this.loadedSounds++;
+          if (onProgress) {
+            onProgress(this.loadedSounds, this.totalSounds);
+          }
+          resolve(null); // Resolve cu null, nu reject
+        });
+
+        // Start loading
+        audio.load();
+      } catch (error) {
         this.audioAvailable[name] = false;
-        // Fara log pentru erori - jocul functioneaza si fara audio
-      });
-
-      // Event listener pentru incarcare reusita
-      audio.addEventListener(
-        "canplaythrough",
-        () => {
-          this.audioAvailable[name] = true;
-        },
-        { once: true },
-      );
-
-      return audio;
-    } catch (error) {
-      this.audioAvailable[name] = false;
-      return null;
-    }
+        this.loadedSounds++;
+        if (onProgress) {
+          onProgress(this.loadedSounds, this.totalSounds);
+        }
+        resolve(null);
+      }
+    });
   }
 
-  // Initializeaza toate sunetele
-  init() {
+  // Initializeaza toate sunetele si returneaza Promise cand toate sunt gata
+  async init(onProgress) {
     // Audio MUTED by default - apasa M pentru a activa
 
     try {
-      // Sunet motor - ATENTIE: WAV poate fi foarte mare!
-      // Pentru motor, este recomandat MP3 sau OGG (fisiere mai mici)
-      this.engineSound = this.loadSound("engine", "sounds/engine.mp3");
-      if (this.engineSound) {
-        this.engineSound.loop = true;
-        this.engineSound.volume = 0;
-        this.engineSound.playbackRate = 0.8;
-        this.engineSound.preload = "none"; // NU incarca automat - reduce sacadatul
-      }
+      // Incarca toate sunetele in paralel
+      const promises = [
+        this.loadSound("engine", "sounds/engine.ogg", onProgress).then(
+          (audio) => {
+            this.engineSound = audio;
+            if (audio) {
+              audio.loop = true;
+              audio.volume = 0;
+              audio.playbackRate = 0.8;
+            }
+          },
+        ),
 
-      // Sunet lovit piatra
-      this.sounds.hitStone = this.loadSound("hitStone", "sounds/hit-stone.mp3");
-      if (this.sounds.hitStone) {
-        this.sounds.hitStone.volume = this.volume * 0.8;
-        this.sounds.hitStone.preload = "metadata";
-      }
+        this.loadSound("hitStone", "sounds/hit-stone.ogg", onProgress).then(
+          (audio) => {
+            this.sounds.hitStone = audio;
+            if (audio) audio.volume = this.volume * 0.8;
+          },
+        ),
 
-      // Sunet franare
-      this.sounds.brake = this.loadSound("brake", "sounds/brake.mp3");
-      if (this.sounds.brake) {
-        this.sounds.brake.volume = this.volume * 0.6;
-        this.sounds.brake.preload = "metadata";
-      }
+        this.loadSound("brake", "sounds/brake.ogg", onProgress).then(
+          (audio) => {
+            this.sounds.brake = audio;
+            if (audio) audio.volume = this.volume * 0.6;
+          },
+        ),
 
-      // Sunet zgarietura (tabla/geam)
-      this.sounds.scratch = this.loadSound("scratch", "sounds/scratch.mp3");
-      if (this.sounds.scratch) {
-        this.sounds.scratch.volume = this.volume * 0.7;
-        this.sounds.scratch.preload = "metadata";
-      }
+        this.loadSound("scratch", "sounds/scratch.ogg", onProgress).then(
+          (audio) => {
+            this.sounds.scratch = audio;
+            if (audio) audio.volume = this.volume * 0.7;
+          },
+        ),
 
-      // Sunet lovit copac/bariera (impact mai puternic)
-      // Acest sunet este optional - jocul functioneaza si fara el
-      this.sounds.crash = this.loadSound("crash", "sounds/crash.mp3");
-      if (this.sounds.crash) {
-        this.sounds.crash.volume = this.volume * 0.8;
-        this.sounds.crash.preload = "metadata";
-      }
+        this.loadSound("crash", "sounds/crash.ogg", onProgress).then(
+          (audio) => {
+            this.sounds.crash = audio;
+            if (audio) audio.volume = this.volume * 0.8;
+          },
+        ),
+      ];
 
-      // Audio gata - muted by default
+      // Asteapta ca toate sunetele sa se incarce
+      await Promise.all(promises);
+
+      // Toate sunetele incarcate (sau au dat eroare dar nu blocheaza)
     } catch (error) {
       // Erori audio nu afecteaza jocul
     }
