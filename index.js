@@ -5,6 +5,7 @@ import { createCar } from "./components/car.js";
 import { createStones } from "./components/piatra.js";
 import { createParticleSystem } from "./components/particles.js";
 import { setMessage } from "./utils.js";
+import { audioManager } from "./audio.js";
 import {
   CONFIG,
   CAMERA_CONFIG,
@@ -187,6 +188,9 @@ const carInitial = {
 
 let car = { ...carInitial };
 
+// Initializeaza sistemul audio
+audioManager.init();
+
 // Input
 const keys = {};
 document.addEventListener("keydown", (e) => {
@@ -250,6 +254,11 @@ document.addEventListener("keydown", (e) => {
       2000,
     );
   }
+
+  if (e.code === "KeyM") {
+    const muted = audioManager.toggleMute();
+    setMessage(msg, muted ? "Sunete oprite" : "Sunete pornite", "info", 2000);
+  }
 });
 
 document.addEventListener("keyup", (e) => {
@@ -257,7 +266,11 @@ document.addEventListener("keyup", (e) => {
 });
 canvas.addEventListener("click", () => {
   canvas.focus();
-  setMessage(msg, "Folosește săgețile pentru a conduce!", "default");
+  setMessage(
+    msg,
+    "Folosește săgețile pentru a conduce! (Apasă M pentru sunete)",
+    "default",
+  );
 });
 
 // scor
@@ -331,6 +344,14 @@ function animate() {
     } else {
       car.vel -= Math.sign(car.vel) * car.friction * dt;
     }
+  }
+
+  // Actualizeaza sunetul motorului
+  audioManager.updateEngine(car.vel, car.maxSpeed, fwd);
+
+  // Sunet franare
+  if (isBraking) {
+    audioManager.playBrake();
   }
 
   // Control stopuri - franarea are prioritate, apoi luminile de pozitie
@@ -414,6 +435,9 @@ function animate() {
     car.z -= Math.cos(car.angle) * car.vel * dt;
     car.vel *= 0.3; // Reduce viteza semnificativ la impact
     carGroup.position.set(car.x, 0, car.z);
+
+    // Sunet crash/zgarietura la impact cu bariera
+    audioManager.playCrash();
   }
 
   // roti se rotesc
@@ -438,6 +462,9 @@ function animate() {
       score++;
       scoreEl.textContent = `Scor: ${score}`;
       setMessage(msg, "Boum! Treci la urmatorul!", "success");
+
+      // Sunet lovit piatra
+      audioManager.playStoneHit();
 
       particleSystem.spawn(scene, mat, sg.position.clone(), stoneColors[i]);
 
@@ -480,6 +507,9 @@ function animate() {
       car.x -= Math.sin(car.angle) * car.vel * dt;
       car.z -= Math.cos(car.angle) * car.vel * dt;
       carGroup.position.set(car.x, 0, car.z);
+
+      // Sunet zgarietura la impact cu copac
+      audioManager.playScratch();
     }
   });
 
