@@ -1,13 +1,18 @@
 import { STONE_CONFIG } from "../config.js";
 
 /**
- * Creează pietrele pe teren
+ * Creeaza pietrele pe teren
  * @param {THREE.Scene} scene - Scena Three.js
- * @param {Function} mat - Funcția pentru materiale
+ * @param {Function} mat - Functia pentru materiale
  * @returns {Object} - Obiectul cu date despre pietre {stones, stoneData, stonePositions, stoneColors}
  */
 export function createStones(scene, mat) {
-  const stoneColors = STONE_CONFIG.COLORS;
+  const baseColors = STONE_CONFIG.COLORS;
+
+  // Genereaza culori pentru toate pietrele (ciclica daca COUNT > numarul de culori)
+  const stoneColors = Array.from({ length: STONE_CONFIG.COUNT }).map(
+    (_, i) => baseColors[i % baseColors.length],
+  );
 
   // Random stones pe langa drum
   const stonePositions = Array.from({ length: STONE_CONFIG.COUNT }).map(() => [
@@ -22,17 +27,25 @@ export function createStones(scene, mat) {
   stonePositions.forEach((pos, i) => {
     const sg = new THREE.Group();
 
+    // Culoare principala pentru piatra
+    const mainColor = stoneColors[i];
+
     const s1 = new THREE.Mesh(
       new THREE.DodecahedronGeometry(STONE_CONFIG.SIZE_MAIN, 0),
-      mat(stoneColors[i], 0.95),
+      mat(mainColor, 0.95),
     );
     s1.scale.set(1, 0.6, 1);
     s1.castShadow = true;
     sg.add(s1);
 
+    // Variatie de culoare pentru a doua piatra (mai deschisa)
+    const secondaryColor = new THREE.Color(mainColor)
+      .offsetHSL(0, 0, 0.1)
+      .getHex();
+
     const s2 = new THREE.Mesh(
       new THREE.DodecahedronGeometry(STONE_CONFIG.SIZE_SECONDARY, 0),
-      mat(stoneColors[i] + 0x111111, 0.95),
+      mat(secondaryColor, 0.95),
     );
     s2.position.set(0.3, 0.2, -0.2);
     s2.castShadow = true;

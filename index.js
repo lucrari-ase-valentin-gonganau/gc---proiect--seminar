@@ -19,6 +19,10 @@ import {
 const canvas = document.getElementById("c");
 const msg = document.getElementById("msg");
 const scoreEl = document.getElementById("score");
+const totalStonesEl = document.getElementById("total-stones");
+
+// Seteaza numarul total de pietre
+totalStonesEl.textContent = STONE_CONFIG.COUNT;
 
 // Rendare
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -40,8 +44,34 @@ camera.position.set(
 );
 camera.lookAt(0, 0, 0);
 
+// OrbitControls pentru modul orbital
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 5;
+controls.maxDistance = 50;
+controls.maxPolarAngle = Math.PI / 2.1; // Nu permite sa mearga sub pamant
+controls.enabled = false; // Initial dezactivat
+
+// Mod camera: 'follow' sau 'orbital'
+let cameraMode = "follow";
+
+if (CONFIG.IS_DEV) {
+  const axesHelper = new THREE.AxesHelper(100);
+  scene.add(axesHelper);
+
+  // Grila ofera un plan de referinta pentru pozitionarea obiectelor.
+  // Primul parametru = dimensiunea totala, al doilea = numarul de subdiviziuni.
+  const gridHelper = new THREE.GridHelper(100, 10);
+  scene.add(gridHelper);
+}
+
 // Lumini
-setupLights(scene);
+const { ambient, sun } = setupLights(scene);
+
+// Stari pentru faruri si zi/noapte
+let headlightsOn = false;
+let isNight = false;
 
 function mat(color, rough = 0.8, metal = 0) {
   return new THREE.MeshStandardMaterial({
@@ -64,7 +94,17 @@ scene.add(ground);
 createDrum(scene, mat);
 
 // Masina
-const { carGroup, wheels, steerPivots } = createCar(scene, mat);
+const {
+  carGroup,
+  wheels,
+  steerPivots,
+  headlights,
+  headlightSpots,
+  brakeLights,
+  brakeLightSpots,
+  reverseLights,
+  reverseLightSpots,
+} = createCar(scene, mat);
 
 // Pietre
 const { stones, stoneData, stonePositions, stoneColors } = createStones(
@@ -143,8 +183,76 @@ let car = { ...carInitial };
 const keys = {};
 document.addEventListener("keydown", (e) => {
   keys[e.code] = true;
-  if (e.code === "Space") e.preventDefault();
   if (e.code === "KeyR") resetScene();
+
+  if (e.code === "KeyC") {
+    cameraMode = cameraMode === "follow" ? "orbital" : "follow";
+    controls.enabled = cameraMode === "orbital";
+    canvas.style.cursor = cameraMode === "orbital" ? "grab" : "none";
+    msg.textContent =
+      cameraMode === "orbital"
+        ? "Mod Orbital: Mișcă mouse-ul pentru a rota camera"
+        : "Mod Urmărire: Camera urmărește mașina";
+    msg.style.color = "white";
+    setTimeout(() => {
+      if (score < STONE_CONFIG.COUNT) {
+        msg.textContent = "Folosește săgețile pentru a conduce!";
+        msg.style.color = "black";
+      }
+    }, 2000);
+  }
+
+  if (e.code === "KeyL") {
+    headlightsOn = !headlightsOn;
+    headlightSpots.forEach((light) => {
+      light.intensity = headlightsOn ? 1.5 : 0;
+    });
+    headlights.forEach((mesh) => {
+      if (headlightsOn) {
+        mesh.material.emissive.setHex(CAR_CONFIG.HEADLIGHT.color);
+        mesh.material.emissiveIntensity = 0.8;
+      } else {
+        mesh.material.emissive.setHex(0x000000);
+        mesh.material.emissiveIntensity = 0;
+      }
+    });
+    msg.textContent = headlightsOn ? "Faruri aprinse" : "Faruri stinse";
+    msg.style.color = "yellow";
+    setTimeout(() => {
+      if (score < STONE_CONFIG.COUNT) {
+        msg.textContent = "Folosește săgețile pentru a conduce!";
+        msg.style.color = "black";
+      }
+    }, 2000);
+  }
+
+  if (e.code === "KeyN") {
+    isNight = !isNight;
+    if (isNight) {
+      // Noapte
+      renderer.setClearColor(0x0a1128);
+      scene.fog.color.setHex(0x0a1128);
+      ambient.intensity = 0.15;
+      sun.intensity = 0.2;
+      sun.color.setHex(0x8888ff);
+      msg.textContent = "Mod Noapte";
+    } else {
+      // Zi
+      renderer.setClearColor(CONFIG.SKY_COLOR);
+      scene.fog.color.setHex(CONFIG.SKY_COLOR);
+      ambient.intensity = 0.5;
+      sun.intensity = 1.2;
+      sun.color.setHex(0xfff4e0);
+      msg.textContent = "Mod Zi";
+    }
+    msg.style.color = isNight ? "lightblue" : "orange";
+    setTimeout(() => {
+      if (score < STONE_CONFIG.COUNT) {
+        msg.textContent = "Folosește săgețile pentru a conduce!";
+        msg.style.color = "black";
+      }
+    }, 2000);
+  }
 });
 
 document.addEventListener("keyup", (e) => {
@@ -152,7 +260,7 @@ document.addEventListener("keyup", (e) => {
 });
 canvas.addEventListener("click", () => {
   canvas.focus();
-  msg.textContent = "Dreapta stanga si primul pietroi, da?";
+  msg.textContent = "Folosește săgețile pentru a conduce!";
 });
 
 // scor
@@ -171,7 +279,7 @@ function resetScene() {
   });
   particleSystem.clear(scene);
 
-  msg.textContent = "Resetat! Dreapta stanga si primul pietroi, da?";
+  msg.textContent = "Resetat! Folosește săgețile pentru a conduce!";
   msg.style.color = "black";
 }
 
@@ -198,25 +306,72 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
 
   // Input si fizica masina
-  const accel = keys["Space"];
   const left = keys["ArrowLeft"];
   const right = keys["ArrowRight"];
   const fwd = keys["ArrowUp"];
   const back = keys["ArrowDown"];
 
-  // acceleratie / frana
-  if (accel && fwd) {
+  // acceleratie / frana / reverse
+  let isBraking = false;
+  let isReversing = false;
+
+  if (fwd) {
     car.vel = Math.min(car.vel + car.accel * dt, car.maxSpeed);
-  } else if (accel && back) {
-    car.vel = Math.max(car.vel - car.brake * dt, -car.maxSpeed * 0.5);
-  } else if (!accel) {
-    const friction = car.friction + (fwd || back ? car.brake * 0.5 : car.brake);
-    if (Math.abs(car.vel) < friction * dt) {
+  } else if (back) {
+    if (car.vel > 0.5) {
+      // Franare daca merge inainte
+      car.vel = Math.max(car.vel - car.brake * dt, 0);
+      isBraking = true;
+    } else {
+      // Mers inapoi
+      car.vel = Math.max(car.vel - car.accel * 0.6 * dt, -car.maxSpeed * 0.5);
+      isReversing = car.vel < -0.1;
+    }
+  } else {
+    // Frictiune
+    if (Math.abs(car.vel) < car.friction * dt) {
       car.vel = 0;
     } else {
-      car.vel -= Math.sign(car.vel) * friction * dt;
+      car.vel -= Math.sign(car.vel) * car.friction * dt;
     }
   }
+
+  // Control stopuri - franarea are prioritate, apoi luminile de pozitie
+  brakeLights.forEach((light, i) => {
+    if (isBraking) {
+      // Franare - intensitate maxima
+      light.material.color.setHex(CAR_CONFIG.TAILLIGHT.brakeColor);
+      light.material.emissive.setHex(CAR_CONFIG.TAILLIGHT.brakeColor);
+      light.material.emissiveIntensity = 0.8;
+      brakeLightSpots[i].intensity = CAR_CONFIG.TAILLIGHT.lightIntensity;
+    } else if (headlightsOn) {
+      // Lumini de pozitie - intensitate mica (tail lights)
+      light.material.color.setHex(0xff3333);
+      light.material.emissive.setHex(0xff0000);
+      light.material.emissiveIntensity = 0.2;
+      brakeLightSpots[i].intensity = 0.3;
+    } else {
+      // Stinse
+      light.material.color.setHex(CAR_CONFIG.TAILLIGHT.color);
+      light.material.emissive.setHex(0x000000);
+      light.material.emissiveIntensity = 0;
+      brakeLightSpots[i].intensity = 0;
+    }
+  });
+
+  reverseLights.forEach((light, i) => {
+    if (isReversing) {
+      light.material.color.setHex(CAR_CONFIG.REVERSELIGHT.activeColor);
+      light.material.emissive.setHex(CAR_CONFIG.REVERSELIGHT.activeColor);
+      light.material.emissiveIntensity = 1;
+      reverseLightSpots[i].intensity = CAR_CONFIG.REVERSELIGHT.lightIntensity;
+    } else {
+      light.material.color.setHex(CAR_CONFIG.REVERSELIGHT.color);
+      light.material.emissive.setHex(0x000000);
+      light.material.emissiveIntensity = 0;
+      reverseLightSpots[i].intensity = 0;
+    }
+  });
 
   // directie daca se misca
   if (Math.abs(car.vel) > 0.1) {
@@ -309,18 +464,24 @@ function animate() {
   // Particule
   particleSystem.update(scene, dt);
 
-  // camera care urmareste masna
-  const camOffset = new THREE.Vector3(
-    Math.sin(car.angle) * CAMERA_CONFIG.OFFSET.z,
-    CAMERA_CONFIG.OFFSET.y,
-    Math.cos(car.angle) * CAMERA_CONFIG.OFFSET.z,
-  );
-  camera.position.lerp(
-    new THREE.Vector3(car.x + camOffset.x, camOffset.y, car.z + camOffset.z),
-    CAMERA_CONFIG.LERP_SPEED,
-  );
-
-  camera.lookAt(car.x, 1, car.z);
+  // Camera
+  if (cameraMode === "follow") {
+    // Camera care urmareste masina
+    const camOffset = new THREE.Vector3(
+      Math.sin(car.angle) * CAMERA_CONFIG.OFFSET.z,
+      CAMERA_CONFIG.OFFSET.y,
+      Math.cos(car.angle) * CAMERA_CONFIG.OFFSET.z,
+    );
+    camera.position.lerp(
+      new THREE.Vector3(car.x + camOffset.x, camOffset.y, car.z + camOffset.z),
+      CAMERA_CONFIG.LERP_SPEED,
+    );
+    camera.lookAt(car.x, 1, car.z);
+  } else {
+    // Mod orbital - OrbitControls ia controlul
+    controls.target.set(car.x, 0, car.z);
+    controls.update();
+  }
 
   renderer.render(scene, camera);
 }

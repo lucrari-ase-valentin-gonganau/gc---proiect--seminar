@@ -1,9 +1,9 @@
 import { ROAD_CONFIG, CONFIG } from "../config.js";
 
 /**
- * Creează drumul cu marcajele centrale
+ * Creeaza drumul cu marcajele centrale
  * @param {THREE.Scene} scene - Scena Three.js
- * @param {Function} mat - Funcția pentru materiale
+ * @param {Function} mat - Functia pentru materiale
  */
 export function createDrum(scene, mat) {
   // Drum principal

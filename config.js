@@ -4,6 +4,7 @@
 
 // Configurare generala
 export const CONFIG = {
+  IS_DEV: false,
   SKY_COLOR: 0x87ceeb,
   GROUND_SIZE: 60,
   GROUND_COLOR: 0x228b22,
@@ -67,6 +68,22 @@ export const CAR_CONFIG = {
     depth: 0.05,
     color: 0xffffaa,
   },
+  TAILLIGHT: {
+    width: 0.3,
+    height: 0.15,
+    depth: 0.05,
+    color: 0x330000,
+    brakeColor: 0xff0000,
+    lightIntensity: 2,
+  },
+  REVERSELIGHT: {
+    width: 0.25,
+    height: 0.15,
+    depth: 0.05,
+    color: 0x222222,
+    activeColor: 0xffffff,
+    lightIntensity: 3,
+  },
   PHYSICS: {
     maxSpeed: 12,
     accel: 18,
@@ -79,14 +96,18 @@ export const CAR_CONFIG = {
   WHEEL_ROTATION_MULT: 2,
 };
 
-// Pietre
+// Pietre - Modifica COUNT pentru a schimba numarul de pietre in joc
 export const STONE_CONFIG = {
-  COUNT: 3,
-  COLORS: [0x7f8c8d, 0x95a5a6, 0xbdc3c7],
+  COUNT: 15, // Numarul de pietre pe teren (modifica acest numar pentru mai multe/mai putine pietre)
+  COLORS: [
+    0x7f8c8d, 0x95a5a6, 0xbdc3c7, 0x606d6e, 0x889899, 0xa0a8a9, 0x6b7879,
+    0x8f9a9b, 0xc5cbcc, 0x707b7c, 0x98a3a4, 0xb8bfc0, 0x788384, 0x909b9c,
+    0xccd2d3,
+  ], // Culori de piatra (gri/argintiu)
   SIZE_MAIN: 0.5,
   SIZE_SECONDARY: 0.3,
   SPAWN_RANGE: 50,
-  INITIAL_Y: 0.35,
+  INITIAL_Y: 0.18, // Inaltime ajustata sa fie lipite de sol
   BOUNCE_SPEED: 4,
   BOUNCE_HEIGHT: 1.5,
   BOUNCE_DECAY: 2,
@@ -102,18 +123,20 @@ export const TREE_CONFIG = {
   MAX_ATTEMPTS_MULTIPLIER: 20,
   TRUNK: {
     radiusTop: 0.15,
-    radiusBottom: 0.2,
-    height: 1.2,
-    radialSegments: 6,
-    color: 0x5d4037,
-    y: 0.6,
+    radiusBottom: 0.22,
+    height: 1.5,
+    radialSegments: 8,
+    color: 0x4a3728,
+    y: 0.75,
   },
-  TOP: {
-    radius: 1.2,
-    height: 2.5,
-    radialSegments: 7,
-    color: 0x2ecc71,
-    y: 2.4,
+  FOLIAGE: {
+    // 3 niveluri de frunzis pentru aspect mai plin
+    levels: [
+      { radius: 1.3, height: 1.8, y: 2.1, color: 0x1e7d42 }, // Jos - verde inchis
+      { radius: 1.1, height: 1.6, y: 2.8, color: 0x2ecc71 }, // Mijloc - verde mediu
+      { radius: 0.8, height: 1.3, y: 3.4, color: 0x52d97a }, // Sus - verde deschis
+    ],
+    radialSegments: 8,
   },
 };
 

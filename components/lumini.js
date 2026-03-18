@@ -1,13 +1,13 @@
 /**
- * Configurează luminile scenei
+ * Configureaza luminile scenei
  * @param {THREE.Scene} scene - Scena Three.js
  */
 export function setupLights(scene) {
-  // Lumină ambientală
+  // Lumina ambientala
   const ambient = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambient);
 
-  // Lumină direcțională (soare)
+  // Lumina directionala (soare)
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.2);
   sun.position.set(10, 20, 10);
   sun.castShadow = true;

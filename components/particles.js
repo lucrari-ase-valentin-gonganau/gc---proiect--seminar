@@ -1,17 +1,17 @@
 import { PARTICLE_CONFIG } from "../config.js";
 
 /**
- * Creează sistemul de particule
- * @returns {Object} - Obiectul cu array-ul de particule și funcțiile de gestionare
+ * Creeaza sistemul de particule
+ * @returns {Object} - Obiectul cu array-ul de particule si functiile de gestionare
  */
 export function createParticleSystem() {
   const particles = [];
 
   /**
-   * Spawn particule la o poziție dată
-   * @param {THREE.Scene} scene - Scena Three.js
-   * @param {Function} mat - Funcția pentru materiale
-   * @param {THREE.Vector3} pos - Poziția exploziei
+   * Spawn particule la o pozitie data
+   * @param {THREE.Scene} scene - Scena
+   * @param {Function} mat - Functia pentru materiale
+   * @param {THREE.Vector3} pos - Pozitia exploziei
    * @param {number} color - Culoarea particulelor
    */
   function spawn(scene, mat, pos, color) {
@@ -39,7 +39,7 @@ export function createParticleSystem() {
   }
 
   /**
-   * Update particule în loop-ul de animație
+   * Update particule in loop-ul de animatie
    * @param {THREE.Scene} scene - Scena Three.js
    * @param {number} dt - Delta time
    */
@@ -62,7 +62,7 @@ export function createParticleSystem() {
   }
 
   /**
-   * Curăță toate particulele
+   * Curata toate particulele
    * @param {THREE.Scene} scene - Scena Three.js
    */
   function clear(scene) {
