@@ -4,6 +4,7 @@ import { setupLights } from "./components/lumini.js";
 import { createCar } from "./components/car.js";
 import { createStones } from "./components/piatra.js";
 import { createParticleSystem } from "./components/particles.js";
+import { setMessage } from "./utils.js";
 import {
   CONFIG,
   CAMERA_CONFIG,
@@ -91,7 +92,14 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 // Drum
-createDrum(scene, mat);
+const {
+  barrierSouth,
+  barrierNorth,
+  fenceEast,
+  fenceWest,
+  fenceNorth,
+  fenceSouth,
+} = createDrum(scene, mat);
 
 // Masina
 const {
@@ -189,17 +197,11 @@ document.addEventListener("keydown", (e) => {
     cameraMode = cameraMode === "follow" ? "orbital" : "follow";
     controls.enabled = cameraMode === "orbital";
     canvas.style.cursor = cameraMode === "orbital" ? "grab" : "none";
-    msg.textContent =
+    const message =
       cameraMode === "orbital"
         ? "Mod Orbital: Mișcă mouse-ul pentru a rota camera"
         : "Mod Urmărire: Camera urmărește mașina";
-    msg.style.color = "white";
-    setTimeout(() => {
-      if (score < STONE_CONFIG.COUNT) {
-        msg.textContent = "Folosește săgețile pentru a conduce!";
-        msg.style.color = "black";
-      }
-    }, 2000);
+    setMessage(msg, message, "info", 2000);
   }
 
   if (e.code === "KeyL") {
@@ -216,14 +218,12 @@ document.addEventListener("keydown", (e) => {
         mesh.material.emissiveIntensity = 0;
       }
     });
-    msg.textContent = headlightsOn ? "Faruri aprinse" : "Faruri stinse";
-    msg.style.color = "yellow";
-    setTimeout(() => {
-      if (score < STONE_CONFIG.COUNT) {
-        msg.textContent = "Folosește săgețile pentru a conduce!";
-        msg.style.color = "black";
-      }
-    }, 2000);
+    setMessage(
+      msg,
+      headlightsOn ? "Faruri aprinse" : "Faruri stinse",
+      "warning",
+      2000,
+    );
   }
 
   if (e.code === "KeyN") {
@@ -235,7 +235,6 @@ document.addEventListener("keydown", (e) => {
       ambient.intensity = 0.15;
       sun.intensity = 0.2;
       sun.color.setHex(0x8888ff);
-      msg.textContent = "Mod Noapte";
     } else {
       // Zi
       renderer.setClearColor(CONFIG.SKY_COLOR);
@@ -243,15 +242,13 @@ document.addEventListener("keydown", (e) => {
       ambient.intensity = 0.5;
       sun.intensity = 1.2;
       sun.color.setHex(0xfff4e0);
-      msg.textContent = "Mod Zi";
     }
-    msg.style.color = isNight ? "lightblue" : "orange";
-    setTimeout(() => {
-      if (score < STONE_CONFIG.COUNT) {
-        msg.textContent = "Folosește săgețile pentru a conduce!";
-        msg.style.color = "black";
-      }
-    }, 2000);
+    setMessage(
+      msg,
+      isNight ? "Mod Noapte" : "Mod Zi",
+      isNight ? "info" : "warning",
+      2000,
+    );
   }
 });
 
@@ -260,7 +257,7 @@ document.addEventListener("keyup", (e) => {
 });
 canvas.addEventListener("click", () => {
   canvas.focus();
-  msg.textContent = "Folosește săgețile pentru a conduce!";
+  setMessage(msg, "Folosește săgețile pentru a conduce!", "default");
 });
 
 // scor
@@ -279,8 +276,7 @@ function resetScene() {
   });
   particleSystem.clear(scene);
 
-  msg.textContent = "Resetat! Folosește săgețile pentru a conduce!";
-  msg.style.color = "black";
+  setMessage(msg, "Resetat! Folosește săgețile pentru a conduce!", "success");
 }
 
 // resize
@@ -299,6 +295,7 @@ const clock = new THREE.Clock();
 const carBB = new THREE.Box3();
 const stoneBB = new THREE.Box3();
 const threeBB = new THREE.Box3();
+const barrierBB = new THREE.Box3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -373,28 +370,51 @@ function animate() {
     }
   });
 
-  // directie daca se misca
+  // directie daca se misca - viteza de rotire proportionala cu viteza
   if (Math.abs(car.vel) > 0.1) {
     const dir = Math.sign(car.vel);
+    // Factor de steering proportional cu viteza (min 0.3, max 1.0)
+    const speedFactor = Math.min(Math.abs(car.vel) / car.maxSpeed, 1.0);
+    const adjustedTurnSpeed = car.turnSpeed * Math.max(speedFactor, 0.3);
+
     if (left) {
-      car.angle += car.turnSpeed * dt * dir;
+      car.angle += adjustedTurnSpeed * dt * dir;
     }
     if (right) {
-      car.angle -= car.turnSpeed * dt * dir;
+      car.angle -= adjustedTurnSpeed * dt * dir;
     }
   }
 
-  // miscare
-  car.x += Math.sin(car.angle) * car.vel * dt;
-  car.z += Math.cos(car.angle) * car.vel * dt;
+  // miscare - calculeaza pozitia viitoare
+  const nextX = car.x + Math.sin(car.angle) * car.vel * dt;
+  const nextZ = car.z + Math.cos(car.angle) * car.vel * dt;
 
   // limitare la teren
-  car.x = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, car.x));
-  car.z = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, car.z));
+  car.x = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, nextX));
+  car.z = Math.max(-CONFIG.MAP_LIMIT, Math.min(CONFIG.MAP_LIMIT, nextZ));
 
   // actualizare pozitie masina
   carGroup.position.set(car.x, 0, car.z);
   carGroup.rotation.y = car.angle;
+
+  // Coliziuni cu bariere - verifica inainte sa aplice miscarea definitiv
+  carBB.setFromObject(carGroup);
+  let hasBarrierCollision = false;
+
+  [barrierSouth, barrierNorth].forEach((barrier) => {
+    barrierBB.setFromObject(barrier);
+    if (carBB.intersectsBox(barrierBB)) {
+      hasBarrierCollision = true;
+    }
+  });
+
+  // Daca loveste bariera, anuleaza miscarea si reduce viteza
+  if (hasBarrierCollision) {
+    car.x -= Math.sin(car.angle) * car.vel * dt;
+    car.z -= Math.cos(car.angle) * car.vel * dt;
+    car.vel *= 0.3; // Reduce viteza semnificativ la impact
+    carGroup.position.set(car.x, 0, car.z);
+  }
 
   // roti se rotesc
   const wheelRot = car.vel * dt * CAR_CONFIG.WHEEL_ROTATION_MULT;
@@ -417,17 +437,18 @@ function animate() {
       stoneData[i].bounceT = 0;
       score++;
       scoreEl.textContent = `Scor: ${score}`;
-      msg.textContent = "Boum! Treci la urmatorul!";
-      msg.style.color = "white";
+      setMessage(msg, "Boum! Treci la urmatorul!", "success");
 
       particleSystem.spawn(scene, mat, sg.position.clone(), stoneColors[i]);
 
       car.vel *= STONE_CONFIG.VELOCITY_REDUCTION;
       if (score >= STONE_CONFIG.COUNT) {
         setTimeout(() => {
-          msg.textContent =
-            "Felicitari! Ai terminat jocul! Apasa R pentru reset.";
-          msg.style.color = "red";
+          setMessage(
+            msg,
+            "Felicitari! Ai terminat jocul! Apasa R pentru reset.",
+            "highlight",
+          );
         }, 1000);
       }
     }
@@ -458,6 +479,7 @@ function animate() {
     if (carBB.intersectsBox(threeBB)) {
       car.x -= Math.sin(car.angle) * car.vel * dt;
       car.z -= Math.cos(car.angle) * car.vel * dt;
+      carGroup.position.set(car.x, 0, car.z);
     }
   });
 

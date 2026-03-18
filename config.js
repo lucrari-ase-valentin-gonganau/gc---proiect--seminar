@@ -6,9 +6,10 @@
 export const CONFIG = {
   IS_DEV: false,
   SKY_COLOR: 0x87ceeb,
-  GROUND_SIZE: 60,
+  GROUND_SIZE: 120,
   GROUND_COLOR: 0x228b22,
-  MAP_LIMIT: 28,
+  MAP_LIMIT: 55, // Limita generala de deplasare pe teren (aproape de marginea ground-ului de 60)
+  ROAD_PLAY_LIMIT: 28, // Limita zonei drumului cu bariere si marcaje
   FOG_NEAR: 30,
   FOG_FAR: 80,
 };
@@ -24,7 +25,7 @@ export const CAMERA_CONFIG = {
 // Drum
 export const ROAD_CONFIG = {
   WIDTH: 6,
-  LENGTH: 60,
+  LENGTH: 120,
   COLOR: 0x444444,
   MARK_COLOR: 0xffffff,
   MARK_WIDTH: 0.2,
